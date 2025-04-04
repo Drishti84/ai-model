@@ -29,27 +29,29 @@ precaution_dict = {row["Disease"]: [row[f"Precaution_{i}"] for i in range(1, 5) 
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    data = request.json
-    symptom_list = data.get("symptoms", [])
+    req = request.get_json()
+    user_text = req.get("queryResult", {}).get("queryText", "").lower()
     
-    valid_symptoms = [s for s in symptom_list if s in mlb.classes_]
-    if not valid_symptoms:
-        return jsonify({"error": "No valid symptoms found. Please enter correct symptom names."}), 400
-    
-    input_vector = mlb.transform([valid_symptoms])
+    # Match symptoms from user_text
+    symptom_list = [s for s in mlb.classes_ if s in user_text]
+
+    if not symptom_list:
+        return jsonify({"fulfillmentText": "I couldn't find any known symptoms in your message."})
+
+    input_vector = mlb.transform([symptom_list])
     input_tensor = torch.tensor(input_vector, dtype=torch.float32).to(device)
-    
+
     with torch.no_grad():
         output = model(input_tensor)
         _, predicted_class = torch.max(output, 1)
-    
+
     predicted_disease = label_encoder.inverse_transform([predicted_class.cpu().numpy()[0]])[0]
     precautions = precaution_dict.get(predicted_disease, ["No precautions available."])
-    
-    return jsonify({
-        "predicted_disease": predicted_disease,
-        "precautions": precautions
-    })
+
+    response_text = f"You may have *{predicted_disease}*. Here are some precautions: " + ", ".join(precautions)
+
+    return jsonify({"fulfillmentText": response_text})
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
