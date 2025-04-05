@@ -27,18 +27,35 @@ import pandas as pd
 precaution_df = pd.read_csv("data/symptom_precaution.csv")
 precaution_dict = {row["Disease"]: [row[f"Precaution_{i}"] for i in range(1, 5) if pd.notna(row[f"Precaution_{i}"])] for _, row in precaution_df.iterrows()}
 
+
+def extract_symptoms_from_text(text):
+    # Very simple keyword-based filter (can be improved with NLP)
+    possible_symptoms = set(mlb.classes_)
+    words = text.replace(".", "").replace(",", "").split()
+    return [word for word in words if word in possible_symptoms]
+
+
+
 @app.route("/predict", methods=["POST"])
 def predict():
     data = request.json
+    symptom_list = []
 
-    # First try to get structured 'symptoms' field (ideal)
-    symptom_list = data.get("symptoms", [])
+    # 1. Check for structured 'symptoms' first
+    if "symptoms" in data:
+        symptom_list = data["symptoms"]
 
-    # If not provided, try extracting from Dialogflow queryText
-    if not symptom_list and "queryResult" in data:
-        query_text = data["queryResult"].get("queryText", "")
-        # Very basic split for demo purposes
-        symptom_list = [s.strip().lower() for s in query_text.split(" and ")]
+    # 2. Check Dialogflow's fulfillmentMessages payload
+    elif "queryResult" in data:
+        for msg in data["queryResult"].get("fulfillmentMessages", []):
+            if "payload" in msg and "symptoms" in msg["payload"]:
+                symptom_list = msg["payload"]["symptoms"]
+                break
+
+        # 3. As last fallback, split queryText and clean common phrases
+        if not symptom_list:
+            query_text = data["queryResult"].get("queryText", "").lower()
+            symptom_list = extract_symptoms_from_text(query_text)
 
     print("Received symptoms:", symptom_list)
 
