@@ -29,14 +29,25 @@ precaution_dict = {row["Disease"]: [row[f"Precaution_{i}"] for i in range(1, 5) 
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    req = request.get_json()
-    user_text = req.get("queryResult", {}).get("queryText", "").lower()
-    
-    # Match symptoms from user_text
-    symptom_list = [s for s in mlb.classes_ if s in user_text]
+    data = request.json
 
-    if not symptom_list:
-        return jsonify({"fulfillmentText": "I couldn't find any known symptoms in your message."})
+    # First try to get structured 'symptoms' field (ideal)
+    symptom_list = data.get("symptoms", [])
+
+    # If not provided, try extracting from Dialogflow queryText
+    if not symptom_list and "queryResult" in data:
+        query_text = data["queryResult"].get("queryText", "")
+        # Very basic split for demo purposes
+        symptom_list = [s.strip().lower() for s in query_text.split(" and ")]
+
+    print("Received symptoms:", symptom_list)
+
+    valid_symptoms = [s for s in symptom_list if s in mlb.classes_]
+    if not valid_symptoms:
+        return jsonify({"error": "No valid symptoms found. Please enter correct symptom names."}), 400
+
+    # Proceed as before...
+
 
     input_vector = mlb.transform([symptom_list])
     input_tensor = torch.tensor(input_vector, dtype=torch.float32).to(device)
@@ -49,8 +60,19 @@ def predict():
     precautions = precaution_dict.get(predicted_disease, ["No precautions available."])
 
     response_text = f"You may have *{predicted_disease}*. Here are some precautions: " + ", ".join(precautions)
+   
 
-    return jsonify({"fulfillmentText": response_text})
+
+    return jsonify({
+    "fulfillmentMessages": [
+        {
+            "text": {
+                "text": [response_text]
+            }
+        }
+    ]
+})
+
 
 
 if __name__ == "__main__":
