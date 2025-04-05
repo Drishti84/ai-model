@@ -60,18 +60,21 @@ def predict():
     precautions = precaution_dict.get(predicted_disease, ["No precautions available."])
 
     response_text = f"You may have *{predicted_disease}*. Here are some precautions: " + ", ".join(precautions)
-   
-
 
     return jsonify({
-    "fulfillmentMessages": [
-        {
-            "text": {
-                "text": [response_text]
+        "fulfillmentMessages": [
+            {
+                "text": {
+                    "text": [response_text]
+                }
+            },
+            {
+                "payload": {
+                    "symptoms": valid_symptoms
+                }
             }
-        }
-    ]
-})
+        ]
+    })
 
 
 
