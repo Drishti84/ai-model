@@ -41,21 +41,27 @@ def predict():
     data = request.json
     symptom_list = []
 
-    # 1. Check for structured 'symptoms' first
+    # 1. Check for structured 'symptoms' first (e.g. manual API calls)
     if "symptoms" in data:
         symptom_list = data["symptoms"]
 
-    # 2. Check Dialogflow's fulfillmentMessages payload
+# 2. Check Dialogflow-style payloads
     elif "queryResult" in data:
+    # Check for parameters (most reliable if using Dialogflow entities)
+        symptom_list = data["queryResult"].get("parameters", {}).get("symptom", [])
+
+    # If still empty, check custom payloads inside fulfillmentMessages
+    if not symptom_list:
         for msg in data["queryResult"].get("fulfillmentMessages", []):
             if "payload" in msg and "symptoms" in msg["payload"]:
                 symptom_list = msg["payload"]["symptoms"]
                 break
 
-        # 3. As last fallback, split queryText and clean common phrases
-        if not symptom_list:
-            query_text = data["queryResult"].get("queryText", "").lower()
-            symptom_list = extract_symptoms_from_text(query_text)
+    # Final fallback: parse raw queryText
+    if not symptom_list:
+        query_text = data["queryResult"].get("queryText", "").lower()
+        symptom_list = extract_symptoms_from_text(query_text)
+
 
     print("Received symptoms:", symptom_list)
 
