@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer, LabelEncoder
 from model import DiseasePredictor
 import pandas as pd
+import re
 
 app = Flask(__name__)
 
@@ -31,10 +32,10 @@ precaution_dict = {
 }
 
 def extract_symptoms_from_text(text):
-    # Simple symptom extractor
-    possible_symptoms = set([s.lower() for s in mlb.classes_])
-    words = text.replace(".", "").replace(",", "").lower().split()
-    return [word for word in words if word in possible_symptoms]
+    possible_symptoms = set(s.lower() for s in mlb.classes_)
+    clean_text = re.sub(r"[^\w\s]", "", text.lower())  # remove punctuation
+    found = [symptom for symptom in possible_symptoms if symptom in clean_text]
+    return found
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -68,6 +69,9 @@ def predict():
     valid_symptoms = [s for s in symptom_list if s in mlb.classes_]
 
     print("Valid symptoms used for prediction:", valid_symptoms)
+    print("FULL PAYLOAD:", data)
+    print("Extracted symptoms (final):", symptom_list)
+
 
     if not valid_symptoms:
         return jsonify({"error": "No valid symptoms found. Please enter correct symptom names."}), 400
